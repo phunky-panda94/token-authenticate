@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 const mongoose = require('mongoose');
 mongoose.connect(process.env.MONGO_URI);
@@ -17,11 +18,13 @@ app.get('/profile', authenticateToken, (req, res) => {
     res.send(`Successfully logged in.`);
 })
 
-app.post('/register', (req,res) => {
+app.post('/register', async (req,res) => {
+
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
     const newUser = new User({
         username: req.body.username,
-        password: req.body.password
+        password: hashedPassword
     })
 
     newUser.save(err => {
@@ -39,12 +42,18 @@ app.post('/login', (req, res) => {
 
         if (err) return res.sendStatus(400);
         if (!user) return res.sendStatus(404);
-        if (req.body.password !== user.password) return res.sendStatus(403);
+        
+        bcrypt.compare(req.body.password, user.password, (err, match) => {
 
-        // if successful, create and return token
-        const token = jwt.sign({ username: req.body.username }, process.env.TOKEN_SECRET);
-        return res.json(token);
+            if (err) return res.sendStatus(400);
+            if (!match) return res.sendStatus(403);
 
+            // if successful, create and return token
+            const token = jwt.sign({ username: req.body.username }, process.env.TOKEN_SECRET);
+            return res.json(token);
+
+        })
+        
     });
     
 
